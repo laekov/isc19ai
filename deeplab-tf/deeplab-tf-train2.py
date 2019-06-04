@@ -90,11 +90,11 @@ def main(device, input_path_train, input_path_validation, downsampling_fact, dow
     loss_print_interval = 10
 
     #session config
-    sess_config=tf.ConfigProto(inter_op_parallelism_threads=4, #1
-                               intra_op_parallelism_threads=16, #6
+    sess_config=tf.ConfigProto(inter_op_parallelism_threads=1, #1
+                               intra_op_parallelism_threads=6, #6
                                log_device_placement=False,
                                allow_soft_placement=True)
-    sess_config.gpu_options.visible_device_list = str(comm_local_rank)
+    sess_config.gpu_options.visible_device_list = str(comm_local_rank + 2)
     sess_config.gpu_options.force_gpu_compatible = True
 
     #get data
@@ -255,9 +255,10 @@ def main(device, input_path_train, input_path_validation, downsampling_fact, dow
             #cast to FP32
             labels_one_hot = ensure_type(labels_one_hot, tf.float32)
             loss = focal_loss(onehot_labels=labels_one_hot, logits=logit, alpha=1., gamma=2.)
-
         else:
             raise ValueError("Error, loss type {} not supported.",format(loss_type))
+
+        # tf.summary.scalar('loss', loss)
 
         #determine flops
         flops = graph_flops.graph_flops(format="NHWC" if data_format=="channels_last" else "NCHW", batch=batch, sess_config=sess_config)
@@ -303,6 +304,7 @@ def main(device, input_path_train, input_path_validation, downsampling_fact, dow
             iou_avg = hvd.allreduce(iou_op)
         else:
             iou_avg = tf.identity(iou_op)
+        # tf.summary.scalar('IOU', iou_avg)
 
         with tf.device(device):
             mem_usage_ops = [ tf.contrib.memory_stats.MaxBytesInUse(),
@@ -379,6 +381,7 @@ def main(device, input_path_train, input_path_validation, downsampling_fact, dow
 
             #start training
             start_time = time.time()
+            
             while not sess.should_stop():
 
                 #training loop
@@ -400,7 +403,7 @@ def main(device, input_path_train, input_path_validation, downsampling_fact, dow
                     train_loss = sum(recent_losses) / len(recent_losses)
                     step += 1
 
-                    r_inst = 1e-12 * flops / (t_inst_end-t_inst_start)
+                    r_inst = (t_inst_end-t_inst_start)
                     r_peak = max(r_peak, r_inst)
 
                     #print step report
@@ -411,10 +414,14 @@ def main(device, input_path_train, input_path_validation, downsampling_fact, dow
                             print("REPORT: rank {}, training loss for step {} (of {}) is {}, time {:.3f}".format(comm_rank, train_steps, num_steps, train_loss, time.time()-start_time))
                         else:
                             if comm_rank == 0:
-                                if mem_used[0] > prev_mem_usage:
+                                if True or mem_used[0] > prev_mem_usage:
                                     print("memory usage: {:.2f} GB / {:.2f} GB".format(mem_used[0] / 2.0**30, mem_used[1] / 2.0**30))
                                     prev_mem_usage = mem_used[0]
                                 print("REPORT: training loss for step {} (of {}) is {}, time {:.3f}, r_inst {:.3f}, r_peak {:.3f}, lr {:.2g}".format(train_steps, num_steps, train_loss, time.time()-start_time, r_inst, r_peak, cur_lr))
+
+                    # summary = sess.run([merged], feed_dict=feed_dict(False))
+                    # test_writer.add_summary(summary, train_steps)
+
 
                     #do the validation phase
                     if train_steps_in_epoch == 0:

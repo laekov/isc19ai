@@ -31,8 +31,8 @@ def create_dataset(h5ir, datafilelist, batchsize, num_epochs, comm_size, comm_ra
     if shuffle:
         dataset = dataset.shuffle(buffer_size=100)
     dataset = dataset.map(map_func=lambda dataname: tuple(tf.py_func(h5ir.read, [dataname], [dtype, tf.int32, dtype, tf.string])),
-                          num_parallel_calls = 4)
-    dataset = dataset.prefetch(16)
+                          num_parallel_calls = 8)
+    dataset = dataset.prefetch(32)
     # make sure all batches are equal in size
     dataset = dataset.apply(tf.contrib.data.batch_and_drop_remainder(batchsize))
     dataset = dataset.repeat(num_epochs)
@@ -165,7 +165,7 @@ class h5_input_reader(object):
 
     # suppress SIGINT when we launch pool so ^C's go to main process
     signal.signal(signal.SIGINT, signal.SIG_IGN)
-    pool = multiprocessing.Pool(processes=4)
+    pool = multiprocessing.Pool(processes=16)
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
     def read(self, datafile):
@@ -183,7 +183,7 @@ class h5_input_reader(object):
         smem.return_slot(shared_slot)
         #nvtx.RangePop()
         end_time = time.time()
-        print("Time to read in parallel %s = %.3f s" % (path, end_time-begin_time))
+        # print("Time to read in parallel %s = %.3f s" % (path, end_time-begin_time))
         return data, label, weights, path
 
     def sequential_read(self, datafile):

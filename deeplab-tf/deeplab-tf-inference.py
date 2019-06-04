@@ -42,6 +42,14 @@ from data_helpers import *
 image_height_orig = 768
 image_width_orig = 1152
 
+#horovod, yes or no?
+horovod=True
+try:
+    import horovod.tensorflow as hvd
+except:
+    horovod = False
+
+
 #main function
 def main(device, input_path_test, downsampling_fact, downsampling_mode, channels, data_format, label_id, weights, image_dir, checkpoint_dir, output_graph_file, tst_sz, loss_type, model, decoder, fs_type, batch, batchnorm, dtype, scale_factor):
     #init horovod
@@ -49,6 +57,19 @@ def main(device, input_path_test, downsampling_fact, downsampling_mode, channels
     comm_local_rank = 0
     comm_size = 1
     comm_local_size = 1
+    if horovod:
+        hvd.init()
+        comm_rank = hvd.rank()
+        comm_local_rank = hvd.local_rank()
+        comm_size = hvd.size()
+        #not all horovod versions have that implemented
+        try:
+            comm_local_size = hvd.local_size()
+        except:
+            comm_local_size = 1
+        if comm_rank == 0:
+            print("Using distributed computation with Horovod: {} total ranks".format(comm_size,comm_rank))
+
 
     #downsampling? recompute image dimensions
     image_height =  image_height_orig // downsampling_fact
