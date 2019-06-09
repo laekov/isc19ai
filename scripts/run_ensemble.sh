@@ -16,16 +16,30 @@ datadir=/mnt/data
 # scratchdir=/mnt/ram/segm_h5_v3_new_split
 scratchdir=/mnt/data/segm_h5_v3_new_split
 # scratchdir=/mnt/ssd/ISC19_AI_DATA/segm_h5_v3_new_split
-checkpt=/mnt/ssd/laekov/checkpt_model1
+checkpt=/mnt/ssd/laekov/checkpt
 numfiles_train=3000
 numfiles_validation=300
 numfiles_test=500
 downsampling=1
-batch=2
+batch=1
 if [ $(hostname) = i7 ] || [ $(hostname) = i8 ]
 then
 	batch=3
 fi
+
+export CUDA_VISIBLE_DEVICES=$OMPI_COMM_WORLD_LOCAL_RANK
+case $OMPI_COMM_WORLD_LOCAL_RANK in
+	0)
+		socket=0
+		;;
+	1 | 2)
+		socket=2
+		;;
+	3)
+		socket=3
+		;;
+esac
+
 
 #create run dir
 run_dir=/mnt/ssd/laekov/deeplab_run
@@ -37,8 +51,9 @@ cp ../utils/graph_flops.py ${run_dir}/
 cp ../utils/common_helpers.py ${run_dir}/
 cp ../utils/data_helpers.py ${run_dir}/
 cp ../deeplab-tf/deeplab-tf-train.py ${run_dir}/
-cp ../deeplab-tf/deeplab-tf-inference.py ${run_dir}/
+cp ../deeplab-tf/ensemble-tf-inference.py ${run_dir}/
 cp ../deeplab-tf/deeplab_model.py ${run_dir}/
+cp ../tiramisu-tf/tiramisu_model.py ${run_dir}/
 
 #step in
 cd ${run_dir}
@@ -48,39 +63,6 @@ lag=1
 train=0
 test=1
 
-if [ ${train} -eq 1 ]; then
-  echo "Starting Training with bs = " $batch
-  runid=0
-  runfiles=$(ls -latr out.lite.fp32.lag${lag}.train.run* | tail -n1 | awk '{print $9}')
-  if [ ! -z ${runfiles} ]; then
-      runid=$(echo ${runfiles} | awk '{split($1,a,"run"); print a[1]+1}')
-  fi
-    
-	# --channels 0 1 2 10 \
-
-  python -u ./deeplab-tf-train.py \
-    --datadir_train ${scratchdir}/train \
-	--train_size ${numfiles_train} \
-	--datadir_validation ${scratchdir}/validation \
-	--validation_size ${numfiles_validation} \
-	--downsampling ${downsampling} \
-	--downsampling_mode "center-crop" \
-	--chkpt_dir $checkpt \
-	--epochs 5000 \
-	--fs global \
-	--loss weighted_mean \
-	--optimizer opt_type=LARC-Adam,learning_rate=0.0001,gradient_lag=${lag} \
-	--model resnet_v2_101 \
-	--scale_factor 1.0 \
-	--batch ${batch} \
-	--decoder bilinear \
-	--device "/device:cpu:0" \
-	--label_id 0 \
-	--disable_imsave \
-	--use_batchnorm \
-	--data_format "channels_last" |& tee out.lite.fp32.lag${lag}.train.run${runid}
-fi
-
 if [ ${test} -eq 1 ]; then
   echo "Starting Testing"
   runid=0
@@ -89,8 +71,9 @@ if [ ${test} -eq 1 ]; then
       runid=$(echo ${runfiles} | awk '{split($1,a,"run"); print a[1]+1}')
   fi
     
-		# --channels 0 1 2 10 \
-  python -u ./deeplab-tf-inference.py \
+
+  numactl --cpunodebind=$socket -m $socket \
+  python -u ./ensemble-tf-inference.py \
 		--datadir_test ${scratchdir}/test \
 		--test_size ${numfiles_test} \
 		--downsampling ${downsampling} \

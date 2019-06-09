@@ -90,8 +90,8 @@ def main(device, input_path_train, input_path_validation, downsampling_fact, dow
     loss_print_interval = 10
 
     #session config
-    sess_config=tf.ConfigProto(inter_op_parallelism_threads=4, #1
-                               intra_op_parallelism_threads=16, #6
+    sess_config=tf.ConfigProto(inter_op_parallelism_threads=8, #1
+                               intra_op_parallelism_threads=8, #6
                                log_device_placement=False,
                                allow_soft_placement=True)
     sess_config.gpu_options.visible_device_list = str(comm_local_rank)
@@ -319,7 +319,7 @@ def main(device, input_path_train, input_path_validation, downsampling_fact, dow
 
         #checkpointing
         if comm_rank == 0:
-            checkpoint_save_freq = 5*num_steps_per_epoch
+            checkpoint_save_freq = num_steps_per_epoch
             checkpoint_saver = tf.train.Saver(max_to_keep = 1000)
             if (not disable_checkpoints):
                 hooks.append(tf.train.CheckpointSaverHook(checkpoint_dir=checkpoint_dir, save_steps=checkpoint_save_freq, saver=checkpoint_saver))
@@ -341,29 +341,20 @@ def main(device, input_path_train, input_path_validation, downsampling_fact, dow
         loss_window_size = 10
         #start session
         with tf.train.MonitoredTrainingSession(config=sess_config, hooks=hooks) as sess:
+            best_iou = 0.
             #initialize
             sess.run([init_op, init_local_op])
             #restore from checkpoint:
             if comm_rank == 0 and not disable_checkpoints:
                 load_model(sess, checkpoint_saver, checkpoint_dir)
-            with open('prm{}.log'.format(comm_rank), 'w') as f:
-                f.write('{}\n'.format(hvd.rank()))
-                for i, v in enumerate(tf.global_variables()):
-                    f.write('{} {}\n'.format(i, v))
-                print('Parameters checked')
             #broadcast loaded model variables
             if horovod:
-                tb = time.time()
                 sess.run(init_bcast)
-                te = time.time()
-                print('Model synchronization done in {} s'.format(te - tb))
             #create iterator handles
             trn_handle, val_handle = sess.run([trn_handle_string, val_handle_string])
             #init iterators
             sess.run(trn_init_op, feed_dict={handle: trn_handle})
             sess.run(val_init_op, feed_dict={handle: val_handle})
-
-            print('Init iterations done')
 
             # figure out what step we're on (it won't be 0 if we are
             #  restoring from a checkpoint) so we can count from there

@@ -95,11 +95,11 @@ def main(input_path_train, input_path_validation, downsampling_fact, downsamplin
     loss_print_interval = 10
 
     #session config
-    sess_config=tf.ConfigProto(inter_op_parallelism_threads=6, #1
-                               intra_op_parallelism_threads=1, #6
+    sess_config=tf.ConfigProto(inter_op_parallelism_threads=2, #1
+                               intra_op_parallelism_threads=8, #6
                                log_device_placement=False,
                                allow_soft_placement=True)
-    sess_config.gpu_options.visible_device_list = str(comm_local_rank)
+    # sess_config.gpu_options.visible_device_list = str(comm_local_rank)
     sess_config.gpu_options.force_gpu_compatible = True
 
     #get data
@@ -163,6 +163,7 @@ def main(input_path_train, input_path_validation, downsampling_fact, downsamplin
             trn_dataset = create_dataset(trn_reader, trn_data, batch, num_epochs, comm_size, comm_rank, dtype, shuffle=True)
             val_dataset = create_dataset(val_reader, val_data, batch, 1, comm_size, comm_rank, dtype, shuffle=False)
 
+        print('Dataset created')
         #create iterators
         handle = tf.placeholder(tf.string, shape=[], name="iterator-placeholder")
         iterator = tf.data.Iterator.from_string_handle(handle, (dtype, tf.int32, dtype, tf.string),
@@ -433,7 +434,7 @@ def main(input_path_train, input_path_validation, downsampling_fact, downsamplin
                                         imsave(image_dir+'/test_label_epoch'+str(epoch)+'_estep'
                                                +str(eval_steps)+'_rank'+str(comm_rank)+'.png',val_model_labels[0,...]*100)
                                         imsave(image_dir+'/test_combined_epoch'+str(epoch)+'_estep'
-                                               +str(eval_steps)+'_rank'+str(comm_rank)+'.png',colormap[val_model_labels[0,...],np.argmax(val_model_predictions[0,...],axis=2)])
+                                               +str(eval_steps)+'_rank'+str(comm_rank)+'.png',plot_colormap[val_model_labels[0,...],np.argmax(val_model_predictions[0,...],axis=2)])
                                     else:
                                         np.savez(image_dir+'/test_epoch'+str(epoch)+'_estep'
                                                  +str(eval_steps)+'_rank'+str(comm_rank)+'.npz', prediction=np.argmax(val_model_predictions[0,...],axis=2)*100,

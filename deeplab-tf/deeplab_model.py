@@ -69,7 +69,8 @@ def deeplab_v3_plus_generator(num_classes,
                               batchnorm,
                               pre_trained_model,
                               batch_norm_decay,
-                              data_format='channels_last'):
+                              data_format='channels_last',
+                              scope_prefix=''):
     """Generator for DeepLab v3 plus models.
     Args:
       num_classes: The number of possible classes for image classification.
@@ -103,7 +104,7 @@ def deeplab_v3_plus_generator(num_classes,
         raise ValueError("'base_architrecture' {ba} not supported.".format(ba=base_architecture))
 
 
-    base_architecture = 'getter_scope/' + base_architecture
+    base_architecture = scope_prefix + 'getter_scope/' + base_architecture
 
     def model(inputs, is_training, dtype=tf.float32):
         # we can't directly control the instantiation of batchnorms, but

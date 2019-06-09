@@ -277,12 +277,14 @@ def main(device, input_path_test, downsampling_fact, downsampling_mode, channels
                                                                                                           feed_dict={handle: tst_handle})
                     #print some images
                     if have_imsave:
-                        imsave(image_dir+'/test_pred_estep'
-                               +str(eval_steps)+'_rank'+str(comm_rank)+'.png', np.argmax(tst_model_predictions[0,...],axis=-1)*100)
-                        imsave(image_dir+'/test_label_estep'
-                               +str(eval_steps)+'_rank'+str(comm_rank)+'.png', tst_model_labels[0,...]*100)
-                        imsave(image_dir+'/test_combined_estep'
-                               +str(eval_steps)+'_rank'+str(comm_rank)+'.png', plot_colormap[tst_model_labels[0,...],np.argmax(tst_model_predictions[0,...],axis=-1)])
+                        for i in range(tst_model_labels.shape[0]):
+                            suf = '{}_rank{}_{}.png'.format(eval_steps, comm_rank, i)
+                            imsave(image_dir+'/test_pred_estep'
+                                   +suf, np.argmax(tst_model_predictions[i,...],axis=-1)*100)
+                            imsave(image_dir+'/test_label_estep'
+                                   +suf, tst_model_labels[i,...]*100)
+                            imsave(image_dir+'/test_combined_estep'
+                                   +suf, plot_colormap[tst_model_labels[i,...],np.argmax(tst_model_predictions[i,...],axis=-1)])
                     else:
                         np.savez(image_dir+'/test_estep'
                                  +str(eval_steps)+'_rank'+str(comm_rank)+'.npz', prediction=np.argmax(tst_model_predictions[...],axis=-1)*100,
