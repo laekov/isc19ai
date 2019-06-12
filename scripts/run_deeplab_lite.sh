@@ -16,16 +16,29 @@ datadir=/mnt/data
 # scratchdir=/mnt/ram/segm_h5_v3_new_split
 scratchdir=/mnt/data/segm_h5_v3_new_split
 # scratchdir=/mnt/ssd/ISC19_AI_DATA/segm_h5_v3_new_split
-checkpt=/mnt/ssd/laekov/checkpt_model1
+checkpt=/mnt/ssd/laekov/checkpt_ds_model0
 numfiles_train=3000
 numfiles_validation=300
 numfiles_test=500
-downsampling=1
-batch=2
+downsampling=4
+batch=10
 if [ $(hostname) = i7 ] || [ $(hostname) = i8 ]
 then
-	batch=3
+	batch=22
 fi
+
+case $OMPI_COMM_WORLD_LOCAL_RANK in
+	0)
+		socket=0
+		;;
+	1 | 2)
+		socket=1,2
+		;;
+	3)
+		socket=3
+		;;
+esac
+
 
 #create run dir
 run_dir=/mnt/ssd/laekov/deeplab_run
@@ -58,6 +71,7 @@ if [ ${train} -eq 1 ]; then
     
 	# --channels 0 1 2 10 \
 
+  numactl --cpunodebind=$socket -m $socket \
   python -u ./deeplab-tf-train.py \
     --datadir_train ${scratchdir}/train \
 	--train_size ${numfiles_train} \
@@ -69,8 +83,8 @@ if [ ${train} -eq 1 ]; then
 	--epochs 5000 \
 	--fs global \
 	--loss weighted_mean \
-	--optimizer opt_type=LARC-Adam,learning_rate=0.0001,gradient_lag=${lag} \
-	--model resnet_v2_101 \
+	--optimizer opt_type=LARC-Adam,learning_rate=0.0064,gradient_lag=${lag} \
+	--model resnet_v2_50 \
 	--scale_factor 1.0 \
 	--batch ${batch} \
 	--decoder bilinear \
@@ -100,7 +114,7 @@ if [ ${test} -eq 1 ]; then
 		--output output_test \
 		--fs global \
 		--loss weighted_mean \
-		--model=resnet_v2_101 \
+		--model=resnet_v2_50 \
 		--scale_factor 1.0 \
 		--batch ${batch} \
 		--decoder bilinear \

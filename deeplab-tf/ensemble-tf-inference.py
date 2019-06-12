@@ -171,6 +171,11 @@ def main(device, input_path_test, downsampling_fact, downsampling_mode, channels
             else:
                 raise ValueError("Error, downsampling mode {} not supported. Supported are [center-crop, scale]".format(downsampling_mode))
 
+        # memory ops
+        with tf.device(device):
+            mem_usage_ops = [ tf.contrib.memory_stats.MaxBytesInUse(),
+                              tf.contrib.memory_stats.BytesLimit() ]
+
         #create init handles
         #tst
         tst_iterator = tst_dataset.make_initializable_iterator()
@@ -214,9 +219,9 @@ def main(device, input_path_test, downsampling_fact, downsampling_mode, channels
                                                 nb_layers_per_block=blocks, p=0.2, wd=1e-4, \
                                                 dtype=dtype, batchnorm=batchnorm, growth_rate=growth, \
                                                 nb_filter=nb_filter, filter_sz=filter_sz, median_filter=False, \
-                                                data_format='channels_first')
-        logit = logit0 + logit1 + logitt
-        prediction = prediction0 + prediction1 + predictiont
+                                                data_format='channels_first', training=True)
+        logit = logit0 + logit1 + logitt * 2.
+        prediction = prediction0 + prediction1 + predictiont * 2.
 
         #set up loss
         loss = None
@@ -330,6 +335,8 @@ def main(device, input_path_test, downsampling_fact, downsampling_mode, channels
                     #update loss
                     eval_loss += tmp_loss
                     eval_steps += 1
+                    if comm_rank == 0 and eval_steps % 10 == 0:
+                        print('Eval step {} of {}'.format(eval_steps, tst_sz // (batch * comm_size)))
 
                 except tf.errors.OutOfRangeError:
                     eval_steps = np.max([eval_steps,1])
@@ -338,6 +345,15 @@ def main(device, input_path_test, downsampling_fact, downsampling_mode, channels
                     iou_score = sess.run(iou_op)
                     print("COMPLETED: evaluation IoU is {}".format(iou_score))
                     break
+            mean_iou = hvd.allreduce(iou_op)
+            mean_iou_score = sess.run(mean_iou)
+            if comm_rank == 0:
+                print('Mean iou is {}'.format(mean_iou_score))
+
+            mem_used = sess.run(mem_usage_ops)
+            if comm_rank == 0:
+                print("memory usage: {:.2f} GB / {:.2f} GB".format(mem_used[0] / 2.0**30, mem_used[1] / 2.0**30))
+
 
 if __name__ == '__main__':
     AP = argparse.ArgumentParser()

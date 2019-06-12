@@ -16,15 +16,15 @@ datadir=/mnt/data
 # scratchdir=/mnt/ram/segm_h5_v3_new_split
 scratchdir=/mnt/data/segm_h5_v3_new_split
 # scratchdir=/mnt/ssd/ISC19_AI_DATA/segm_h5_v3_new_split
-checkpt=/mnt/ssd/laekov/checkpt
+checkpt=/mnt/ssd/laekov/checkpt_ds
 numfiles_train=3000
 numfiles_validation=300
 numfiles_test=500
-downsampling=1
+downsampling=4
 batch=1
 if [ $(hostname) = i7 ] || [ $(hostname) = i8 ]
 then
-	batch=3
+	batch=62
 fi
 
 export CUDA_VISIBLE_DEVICES=$OMPI_COMM_WORLD_LOCAL_RANK
@@ -33,7 +33,7 @@ case $OMPI_COMM_WORLD_LOCAL_RANK in
 		socket=0
 		;;
 	1 | 2)
-		socket=2
+		socket=1,2
 		;;
 	3)
 		socket=3
@@ -64,15 +64,14 @@ train=0
 test=1
 
 if [ ${test} -eq 1 ]; then
-  echo "Starting Testing"
+  echo "Starting Testing with batch size = " $batch
   runid=0
   runfiles=$(ls -latr out.lite.fp32.lag${lag}.test.run* | tail -n1 | awk '{print $9}')
   if [ ! -z ${runfiles} ]; then
       runid=$(echo ${runfiles} | awk '{split($1,a,"run"); print a[1]+1}')
   fi
     
-
-  numactl --cpunodebind=$socket -m $socket \
+  # numactl --cpunodebind=$socket -m $socket \
   python -u ./ensemble-tf-inference.py \
 		--datadir_test ${scratchdir}/test \
 		--test_size ${numfiles_test} \

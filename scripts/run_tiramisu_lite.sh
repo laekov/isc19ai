@@ -11,7 +11,7 @@ export CUDA_VISIBLE_DEVICES=$OMPI_COMM_WORLD_LOCAL_RANK
 
 #directories and files
 datadir=/mnt/data
-checkpt=/mnt/ssd/laekov/checkpt_modelt
+checkpt=/mnt/ssd/laekov/checkpt_ds_modelt
 scratchdir=/mnt/data/segm_h5_v3_new_split/
 numfiles_train=3000
 numfiles_validation=300
@@ -22,7 +22,7 @@ case $OMPI_COMM_WORLD_LOCAL_RANK in
 		socket=0
 		;;
 	1 | 2)
-		socket=2
+		socket=1,2
 		;;
 	3)
 		socket=3
@@ -30,13 +30,13 @@ case $OMPI_COMM_WORLD_LOCAL_RANK in
 esac
 
 #network parameters
-downsampling=1
-batch=3
+downsampling=4
+batch=12
 # blocks="2 2 2 4 5"
 blocks="3 3 4 4 7 7"
 
 #create run dir
-run_dir=/mnt/ssd/laekov/run_tiramisu
+run_dir=/mnt/ssd/laekov/tiramisu_run
 #rundir=${WORK}/data/tiramisu/runs/run_nnodes16_j6415751
 mkdir -p ${run_dir}
 
@@ -54,8 +54,8 @@ cd ${run_dir}
 
 #some parameters
 lag=0
-train=0
-test=1
+train=1
+test=0
 
 if [ ${train} -eq 1 ]; then
   echo "Starting Training bs = " $batch " socket = " $socket

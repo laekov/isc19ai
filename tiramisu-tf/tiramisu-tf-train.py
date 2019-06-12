@@ -228,6 +228,11 @@ def main(input_path_train, input_path_validation, downsampling_fact, downsamplin
                     
             else:
                 raise ValueError("Error, downsampling mode {} not supported. Supported are [center-crop, random-crop, scale]".format(downsampling_mode))
+
+        # memory ops
+        with tf.device(device):
+            mem_usage_ops = [ tf.contrib.memory_stats.MaxBytesInUse(),
+                              tf.contrib.memory_stats.BytesLimit() ]
         
         #create init handles
         #trn
@@ -411,6 +416,8 @@ def main(input_path_train, input_path_validation, downsampling_fact, downsamplin
                         else:
                             if comm_rank == 0:
                                 print("COMPLETED: training loss for epoch {} (of {}) is {}, time {:.3f}, r_sust {:.3f}".format(epoch, num_epochs, train_loss, time.time() - start_time, 1e-12 * flops * num_steps_per_epoch / (end_time-t_sustained_start) ))
+                            mem_used = sess.run(mem_usage_ops)
+                            print("memory usage: {:.2f} GB / {:.2f} GB".format(mem_used[0] / 2.0**30, mem_used[1] / 2.0**30))
 
                         #evaluation loop
                         eval_loss = 0.

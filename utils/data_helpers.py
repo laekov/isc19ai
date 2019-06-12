@@ -76,7 +76,7 @@ class SharedExchangeBuffer(object):
         return tuple(results)
 
 #global shared memory buffer
-smem = SharedExchangeBuffer(4, 128 << 20)
+smem = SharedExchangeBuffer(8, 128 << 20)
 
 # defined outside of the h5_input_reader class due to weirdness with pickling
 #  class methods
@@ -165,7 +165,7 @@ class h5_input_reader(object):
 
     # suppress SIGINT when we launch pool so ^C's go to main process
     signal.signal(signal.SIGINT, signal.SIG_IGN)
-    pool = multiprocessing.Pool(processes=16)
+    pool = multiprocessing.Pool(processes=4)
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
     def read(self, datafile):
@@ -275,5 +275,7 @@ def load_model(sess, saver, checkpoint_dir):
     try:
         saver.restore(sess, latest_ckpt)
         print("Model restoration successful.")
-    except:
+    except Exception as e:
+        print(e)
         print("Loading model failed, starting fresh.")
+        raise e
