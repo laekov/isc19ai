@@ -9,7 +9,6 @@ export OMP_NUM_THREADS=16
 # export OMP_PROC_BIND=spread
 
 #pick GPU: remove for multi-gpu
-# export CUDA_VISIBLE_DEVICES=0
 
 #directories
 datadir=/mnt/data
@@ -57,9 +56,10 @@ cp ../deeplab-tf/deeplab_model.py ${run_dir}/
 cd ${run_dir}
 
 #some parameters
-lag=1
-train=1
+lag=0
+train=0
 test=0
+predict=1
 
 if [ ${train} -eq 1 ]; then
   echo "Starting Training with bs = " $batch
@@ -96,7 +96,35 @@ if [ ${train} -eq 1 ]; then
 fi
 
 if [ ${test} -eq 1 ]; then
-  echo "Starting Testing"
+  echo "Starting Evaluation"
+  runid=0
+  runfiles=$(ls -latr out.lite.fp32.lag${lag}.test.run* | tail -n1 | awk '{print $9}')
+  if [ ! -z ${runfiles} ]; then
+      runid=$(echo ${runfiles} | awk '{split($1,a,"run"); print a[1]+1}')
+  fi
+    
+  python -u ./deeplab-tf-inference.py      --datadir_test ${scratchdir}/validation \
+                                           --test_size ${numfiles_validation} \
+                                           --downsampling ${downsampling} \
+                                           --downsampling_mode "center-crop" \
+                                           --channels 0 1 2 10 \
+                                           --chkpt_dir checkpoint.fp32.lag${lag} \
+                                           --output_graph deepcam_inference.pb \
+                                           --output output_test \
+                                           --fs local \
+                                           --loss weighted_mean \
+                                           --model=resnet_v2_50 \
+                                           --scale_factor 1.0 \
+                                           --batch 5 \
+                                           --decoder bilinear \
+                                           --device "/device:cpu:0" \
+                                           --label_id 0 \
+		                           --use_batchnorm \
+                                           --data_format "channels_last" |& tee out.lite.fp32.lag${lag}.test.run${runid}
+fi
+
+if [ ${predict} -eq 1 ]; then
+  echo "Starting Prediction"
   runid=0
   runfiles=$(ls -latr out.lite.fp32.lag${lag}.test.run* | tail -n1 | awk '{print $9}')
   if [ ! -z ${runfiles} ]; then
@@ -105,6 +133,7 @@ if [ ${test} -eq 1 ]; then
     
 		# --channels 0 1 2 10 \
   python -u ./deeplab-tf-inference.py \
+        --prediction_mode \
 		--datadir_test ${scratchdir}/test \
 		--test_size ${numfiles_test} \
 		--downsampling ${downsampling} \

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+module load tensorflow/gpu-1.13.1-py36
+
 #openmp stuff
 export OMP_NUM_THREADS=16
 # export OMP_PLACES=threads
@@ -54,8 +56,9 @@ cd ${run_dir}
 
 #some parameters
 lag=0
-train=1
+train=0
 test=0
+predict=1
 
 if [ ${train} -eq 1 ]; then
   echo "Starting Training bs = " $batch " socket = " $socket
@@ -72,7 +75,7 @@ if [ ${train} -eq 1 ]; then
                                         --validation_size ${numfiles_validation} \
                                         --chkpt_dir $checkpt \
 										--disable_imsave \
-					--downsampling ${downsampling} \
+										--downsampling ${downsampling} \
                                         --downsampling_mode "center-crop" \
                                         --epochs 5000 \
                                         --fs global \
@@ -83,20 +86,51 @@ if [ ${train} -eq 1 ]; then
                                         --optimizer opt_type=LARC-Adam,learning_rate=0.0001,gradient_lag=${lag} \
                                         --scale_factor 1.0 \
                                         --batch ${batch} \
-					--use_batchnorm \
+                                        --use_batchnorm \
                                         --label_id 0 \
-					--data_format "channels_first" |& tee out.lite.fp32.lag${lag}.train.run${runid}
+                                        --data_format "channels_first" |& tee out.lite.fp32.lag${lag}.train.run${runid}
 fi
 
+
 if [ ${test} -eq 1 ]; then
-  echo "Starting Testing"
+  echo "Starting Evaluation"
   runid=0
   runfiles=$(ls -latr out.lite.fp32.lag${lag}.test.run* | tail -n1 | awk '{print $9}')
   if [ ! -z ${runfiles} ]; then
       runid=$(echo ${runfiles} | awk '{split($1,a,"run"); print a[1]+1}')
   fi
     
-  python -u ./tiramisu-tf-inference.py     --datadir_test ${scratchdir}/test \
+  python -u ./tiramisu-tf-inference.py     --datadir_test ${scratchdir}/validation \
+                                           --test_size ${numfiles_validation} \
+                                           --downsampling ${downsampling} \
+                                           --downsampling_mode "center-crop" \
+                                           --channels 0 1 2 10 \
+                                           --chkpt_dir checkpoint.fp32.lag${lag} \
+                                           --output_graph tiramisu_inference.pb \
+                                           --output output_validation \
+                                           --fs local \
+                                           --blocks ${blocks} \
+                                           --growth 32 \
+                                           --filter-sz 5 \
+                                           --loss weighted \
+                                           --scale_factor 1.0 \
+                                           --batch 5 \
+                                           --use_batchnorm \
+                                           --label_id 0 \
+                                           --data_format "channels_first" |& tee out.lite.fp32.lag${lag}.test.run${runid}
+fi
+
+
+if [ ${predict} -eq 1 ]; then
+  echo "Starting Prediction"
+  runid=0
+  runfiles=$(ls -latr out.lite.fp32.lag${lag}.test.run* | tail -n1 | awk '{print $9}')
+  if [ ! -z ${runfiles} ]; then
+      runid=$(echo ${runfiles} | awk '{split($1,a,"run"); print a[1]+1}')
+  fi
+
+  python -u ./tiramisu-tf-inference.py     --datadir_test ${scratchdir}/test_data \
+                                           --prediction_mode \
                                            --test_size ${numfiles_test} \
                                            --downsampling ${downsampling} \
                                            --downsampling_mode "center-crop" \
@@ -104,13 +138,13 @@ if [ ${test} -eq 1 ]; then
 										   --output_graph tiramisu_inference.pb \
                                            --output output_test \
                                            --fs global \
-					   --blocks ${blocks} \
-					   --growth 32 \
-					   --filter-sz 5 \
+										   --blocks ${blocks} \
+										   --growth 32 \
+										   --filter-sz 5 \
                                            --loss weighted \
                                            --scale_factor 1.0 \
-                                           --batch ${batch} \
-					   --use_batchnorm \
+                                           --batch 5 \
+                                           --use_batchnorm \
                                            --label_id 0 \
                                            --data_format "channels_first" |& tee out.lite.fp32.lag${lag}.test.run${runid}
 fi
