@@ -21,10 +21,10 @@ numfiles_train=3000
 numfiles_validation=300
 numfiles_test=500
 downsampling=4
-batch=10
-if [ $(hostname) = i7 ] || [ $(hostname) = i8 ]
+batch=18
+if [ $(hostname) = i1 ] || [ $(hostname) = i2 ]
 then
-	batch=22
+	batch=27
 fi
 
 case $OMPI_COMM_WORLD_LOCAL_RANK in
@@ -41,7 +41,7 @@ esac
 
 
 #create run dir
-run_dir=/mnt/ssd/laekov/deeplab_run
+run_dir=/mnt/ssd/laekov/deeplab_run0
 #run_dir=${WORK}/data/tiramisu/runs/run_nnodes16_j6415751
 mkdir -p ${run_dir}
 
@@ -58,8 +58,8 @@ cd ${run_dir}
 
 #some parameters
 lag=1
-train=0
-test=1
+train=1
+test=0
 
 if [ ${train} -eq 1 ]; then
   echo "Starting Training with bs = " $batch
@@ -83,7 +83,7 @@ if [ ${train} -eq 1 ]; then
 	--epochs 5000 \
 	--fs global \
 	--loss weighted_mean \
-	--optimizer opt_type=LARC-Adam,learning_rate=0.0064,gradient_lag=${lag} \
+	--optimizer opt_type=LARC-Adam,learning_rate=0.0001,gradient_lag=${lag} \
 	--model resnet_v2_50 \
 	--scale_factor 1.0 \
 	--batch ${batch} \
