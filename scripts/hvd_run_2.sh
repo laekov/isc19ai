@@ -1,7 +1,7 @@
 # EXPORT HOROVOD_TIMELINE=/mnt/ssd/laekov/timeline3.json 
 export HOROVOD_FUSION_THRESHOLD=16777216
-horovodrun -np 8 --host i7:4,i8:4 \
-	$(pwd)/run_deeplab_lite.sh 
+horovodrun -np 8 --host i3:4,i4:4 \
+	$(pwd)/run_deeplab_lite1.sh 
 
 exit
 /opt/spack/opt/spack/linux-debian9-x86_64/gcc-6.3.0/openmpi-3.1.2-qubp2kdenj7feas5xliosp6av6kqizdn/bin/mpirun -np 4 --host i7:4 \

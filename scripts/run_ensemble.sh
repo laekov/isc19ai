@@ -22,9 +22,9 @@ numfiles_validation=300
 numfiles_test=500
 downsampling=4
 batch=1
-if [ $(hostname) = i7 ] || [ $(hostname) = i8 ]
+if [ $(hostname) = i1 ] || [ $(hostname) = i2 ]
 then
-	batch=62
+	batch=90
 fi
 
 export CUDA_VISIBLE_DEVICES=$OMPI_COMM_WORLD_LOCAL_RANK
@@ -62,6 +62,7 @@ cd ${run_dir}
 lag=1
 train=0
 test=1
+predict=1
 
 if [ ${test} -eq 1 ]; then
   echo "Starting Testing with batch size = " $batch
@@ -83,6 +84,36 @@ if [ ${test} -eq 1 ]; then
 		--fs global \
 		--loss weighted_mean \
 		--model=resnet_v2_101 \
+		--scale_factor 1.0 \
+		--batch ${batch} \
+		--decoder bilinear \
+		--device "/device:cpu:0" \
+		--label_id 0 \
+		--use_batchnorm \
+		--data_format "channels_last" |& tee out.lite.fp32.lag${lag}.test.run${runid}
+fi
+
+if [ ${predict} -eq 1 ]; then
+  echo "Starting Prediction"
+  runid=0
+  runfiles=$(ls -latr out.lite.fp32.lag${lag}.test.run* | tail -n1 | awk '{print $9}')
+  if [ ! -z ${runfiles} ]; then
+      runid=$(echo ${runfiles} | awk '{split($1,a,"run"); print a[1]+1}')
+  fi
+    
+		# --channels 0 1 2 10 \
+  python -u ./ensemble-tf-inference.py \
+        --prediction_mode \
+		--datadir_test ${scratchdir}/test \
+		--test_size ${numfiles_test} \
+		--downsampling ${downsampling} \
+		--downsampling_mode "center-crop" \
+		--chkpt_dir $checkpt \
+		--output_graph deepcam_inference.pb \
+		--output output_test \
+		--fs global \
+		--loss weighted_mean \
+		--model=resnet_v2_50 \
 		--scale_factor 1.0 \
 		--batch ${batch} \
 		--decoder bilinear \
